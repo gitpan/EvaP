@@ -1,0 +1,74 @@
+.\" @(#)evap.2 2.3.0 (PDT version 2.0) 94/05/01
+.TH evap 2 "01 MAY 1994"
+.SH NAME
+evap \- evaluate C, Perl and Tcl command line parameters in a
+simple and consistent manner, type-check parameter values and
+provide complete command and parameter help (use in place of
+getopt and friends).  Evaluate Parameters can also be
+embedded in your application.
+.SH SYNOPSIS
+See evap.c(2), EvaP.pm(2), evap.tcl(2)
+and evap_pac(2) for more information.
+.SH DESCRIPTION
+All implementations of Evaluate Parameters require certain
+information that you, an application developer, supply.  At a
+minimum what is termed a Parameter Description Table (PDT)
+must be provided.  A PDT is simply a data structure that
+describes a command's parameters and parameter aliases,
+their types and possible default values.
+
+Using the PDT as a guide, Evaluate Parameters parses a user's
+command line, returning the results of the evaluation to the
+PDT structure for C programs, or to global variables for Perl
+and Tcl programs.
+
+Every command using Evaluate Parameters automatically has a
+help switch -h which displays parameter help; no special code
+is required in your application.  In fact, there are three 
+levels of help: -usage_help, -help and -full_help.
+
+From a user's point of view, using C, Perl and Tcl programs
+with Evaluate Parameters as the user interface is identical.
+
+Optionally, a help Message Module can be provided that gives
+the user additional command and parameter help.
+
+There are several auxiliary Perl programs which have proven
+very nice:  `generate_man_page', `generate_PerlTk_program'
+and `generate_TclTk_program'.
+
+The Perl programs `generate_PerlTk_program' and 
+`generate_TclTk_program' use a command's full help output to
+create a Tk X11 GUI wrapper for said program.  See the
+genPerlTk(1) and genTclTk(1) man pages for full details.
+
+Finally, the Perl program `generate_man_page' extracts
+all the nice command and parameter help information that you
+supply for an application and generates simple nroff output
+in the form of a man page.  Keeping a progam's documentation
+accurate is thus simple and automatic.  See the genmp(1) man
+page for full details.
+.SH FILES
+For usage information refer to evap.c(2),
+EvaP.pm(2), evap.tcl(2) and evap_pac(2).
+
+See evap.h, evap.c, EvaP.pm and evap.tcl for complete
+and gory details on Evaluate Parameters.
+.SH AUTHOR
+Stephen O. Lidie, lusol@Lehigh.EDU
+
+Copyright (C) 1990 - 1996 by Stephen O. Lidie and Lehigh University.
+All rights reserved.
+.SH SEE ALSO
+.nf
+.BR evap(2)	
+.BR evap.c(2)	
+.BR EvaP.pm(2)
+.BR evap.tcl(2)
+.BR evap_pac(2)
+.BR addmm, add\_message\_modules(1)
+.BR disci, display\_command\_information(1)
+.BR genmp, generate\_man\_page(1)
+.BR genpdt, generate\_pdt(1)
+.BR genPerlTk, generate\_PerlTk\_program(1)
+.BR genTclTk, generate\_TclTk\_program(1)

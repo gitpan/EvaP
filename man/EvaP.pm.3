@@ -1,0 +1,431 @@
+.\" @(#)EvaP.pm.2 2.3.0 (PDT version 2.0) 94/11/03
+.TH EvaP.pm 2 "08 MAR 1996"
+.SH NAME
+EvaP.pm \- evaluate Perl command line parameters in a simple and 
+consistent manner, type-check parameter values and provide
+complete command and parameter help (use in place of getopt and
+friends).  See also evap(2), evap.c(2), evap.tcl(2)
+and evap_pac(2).
+.SH SYNOPSIS
+.nf
+.ft B
+use Getopt::EvaP;
+.ft
+.fi
+.LP
+.nf
+.BR "EvaP \\\\\\\\\@PDT, \\\\\\\\\@MM [, \\\\\\\\\\\%%Opt];"
+.ft
+.fi
+.SH DESCRIPTION
+.LP
+.I PDT
+is the Parameter Description Table, which is a reference to a list of
+strings describing the command line parameters, aliases,
+types and default values.
+.I MM
+is the Message Module, which is also a reference to a list of strings
+describing the command and it's parameters.
+.I Opt
+is an optional hash reference where Evaluate Parameters should place its
+results.  If specified, the historical behaviour of modifying the calling
+routines' namespace by storing option values in %Options, %options and
+$opt* is disabled.
+
+
+** Introduction **
+
+Function Evaluate Parameters parses a Perl command line in a simple and
+consistent manner, performs type checking of parameter values, and provides
+the user with first-level help.  Evaluate Parameters is also embeddable in
+your application; refer to the evap_pac(2) man page for complete details.
+Evaluate Parameters handles command lines in the following format:
+
+  command [-parameters] [file_list]
+
+where parameters and file_list are all optional.  A typical example is the
+C compiler:
+
+  cc -O -o chunk chunk.c
+
+In this case there are two parameters and a file_list consisting of a
+single file name for the cc command.
+
+
+** Parameter Description Table (PDT) Syntax **
+
+Here is the PDT syntax.  Optional constructs are enclosed in [], and the
+| character separates possible values in a list.
+
+.nf
+  PDT [program_name, alias]
+    [parameter_name[, alias]: type [ = [default_variable,] default_value]]
+  PDTEND [optional_file_list | required_file_list | no_file_list]
+.fi
+
+So, the simplest possible PDT would be:
+
+.nf
+  PDT
+  PDTEND
+.fi
+
+This PDT would simply define a -help switch for the command, but is rather
+useless. 
+
+A typical PDT would look more like this:
+
+.nf
+  PDT frog
+    number, n: integer = 1
+  PDTEND no_file_list
+.fi
+
+This PDT, for command frog, defines a
+single parameter, number (or n), of type integer with a default value of 1.
+The PDTEND no_file_list indicator indicates that no trailing file_list
+can appear on the command line.  Of course, the -help switch is defined
+automatically.
+
+The
+.I default_variable 
+is an environment variable - see the section Usage Notes
+for complete details.
+
+
+** Usage Notes **
+
+Usage is similar to getopt/getopts/newgetopt:  define a Parameter Description
+Table declaring a list of command line parameters, their aliases, types and
+default values.  The command line parameter `-help' (alias `-h') is
+automatically included by Evaluate Parameters.  After the evaluation the values
+of the command line parameters are stored in variable names of the form
+`$opt_parameter', except for lists which are returned as `@opt_parameter',
+where 'parameter' is the full spelling of the command line parameter.  
+NOTE:  values are also returned in the hashes %options and %Options, with lists
+being passed as a reference to a list.
+
+Of course, you can specify where you want Evaluate Parameters to return its
+results, in which case this historical feature of writing into your namespace
+is disabled.
+.fi
+ 
+An optional PDT line can be included that tells Evaluate Parameters whether
+or not trailing file names can appear on the command line after all the
+parameters.  It can read `no_file_list, `optional_file_list' or
+`required_file_list' and, if not specified, defaults to optional.  Although
+placement is not important, this line is by convention the last line of the
+PDT declaration.
+
+Additionally a Message Module is declared that describes the command and
+provides examples.  Following the main help text an optional series of
+help text messages can be specified for individual command line parameters.
+In the following  sample program all the parameters have this additional
+text which describes that parameter's type.  The leadin character is a dot
+in column one followed by the full spelling of the command line parameter.
+Use `-full_help' rather than `-help' to see this supplemental information.
+ 
+This sample program illustrates the various types and how to use evap.  The
+`key' type is a special type that enumerates valid values for the command
+line parameter.  The boolean type may be specified as TRUE/FALSE, YES/NO,
+ON/OFF or 1/0.  Parameters of type `file' have ~ and $HOME expanded,
+and default values `stdin' and `stdout' converted to `-' and `>-',
+respectively.  Of special note is the default value '$required':  when
+specified, Evaluate Parameters will ensure a value is specified for that
+command line parameter.
+
+All types except `switch' may be `list of', like the `tty' parameter below.
+A list parameter can be specified multiple times on the command line.
+NOTE: in general you should ALWAYS quote components of your lists, even if
+they're not type string, since Evaluate Parameters uses eval to parse them.
+Doing this prevents eval from evaluating expressions that it shouldn't, such
+as file name shortcuts like $HOME, and backticked items like `hostname`.
+Although the resulting PDT looks cluttered, Evaluate Parameters knows what
+to do and eliminates superfluous quotes appropriately.
+ 
+Finally, you can specify a default value via an environment variable.  If
+a command line parameter is not specified and there is a corresponding
+environment variable defined then Evaluate Parameters will use the value
+of the environment variable.  Examine the `command' parameter for the syntax.
+With this feature users can easily customize command parameters to their
+liking.   Although the name of the environment variable can be whatever you
+choose,  the following scheme is suggested for consistency and to avoid
+conflicts in names:  
+
+  . Use all uppercase characters.
+  . Begin the variable name with D_, to suggest
+    a default variable.
+  . Continue with the name of the command or its
+    alias followed by an underscore.
+  . Complete the variable name with the name of
+    the parameter or its alias.
+
+So, for example, D_DISCI_DO would name a default variable for the
+display_option (do) parameter of the display_command_information
+(disci) command.  Works for MS-DOS and Unix.
+.nf
+
+Example:
+
+#!/usr/local/bin/perl
+     
+use Getopt::EvaP;
+
+@PDT = split /\\n/, <<'end-of-PDT';
+PDT (./libevapmm.a/sample.mm) sample
+  verbose, v: switch
+  command, c: string = D\_SAMPLE\_COMMAND, "ps -el"
+  scale\_factor, sf: real = 1.2340896e-1
+  millisecond\_update\_interval, mui: integer = $required
+  ignore\_output\_file\_column\_one, iofco: boolean = TRUE
+  output, o: file = stdout
+  queue, q: key plotter, postscript, text, printer, keyend = printer
+  destination, d: application = `hostname`
+  tty, t: list of name = ("/dev/console", "/dev/tty0", "/dev/tty1")
+PDTEND optional\_file\_list
+end-of-PDT
+
+@MM = split /\\n/, <<'end-of-MM';
+sample
+
+        A sample program demonstrating typical Evaluate Parameters
+        usage.
+
+        Examples:
+
+          sample
+          sample -usage\_help
+          sample -help
+          sample -full\_help
+          sample -mui 1234
+ .verbose
+        A 'switch' type parameter emulates a typical standalone
+        switch. If the switch is specified Evaluate Parameters
+        returns a '1'.
+ .command
+        A 'string' type parameter is just a list of characters,
+        which must be quoted if it contains whitespace. 
+        NOTE:  for this parameter you can also create and
+        initialize the environment variable D\_SAMPLE\_COMMAND to
+        override the standard default value for this command
+        line parameter.  All types except 'switch' may have a
+        default environment variable for easy user customization.
+ .scale\_factor
+        A 'real' type parameter must be a real number that may
+        contain a leading sign, a decimal point and an exponent.
+ .millisecond\_update\_interval
+        An 'integer' type parameter must consist of all digits
+        with an optional leading sign.  NOTE: this parameter's
+        default value is '$required', meaning that
+        Evaluate Parameters ensures that this parameter is
+        specified and given a valid value.  All types except
+        'switch' may have a default value of '$required'.
+ .ignore\_output\_file\_column\_one
+        A 'boolean' type parameter may be TRUE/YES/ON/1 or
+        FALSE/NO/OFF/0, either upper or lower case.  If TRUE,
+        Evaluate Parameters returns a value of '1', else '0'.
+ .output
+        A 'file' type parameter expects a filename.  For Unix
+        $HOME and ~ are expanded.  For evap/Perl 'stdin' and
+        'stdout' are converted to '-' and '>-' so they can be
+        used in a Perl 'open' function.
+ .queue
+        A 'key' type parameter enumerates valid values.  Only the
+        specified keywords can be entered on the command line.
+ .destination
+        An 'application' type parameter is not type-checked in
+        any - the treatment of this type of parameter is
+        application specific.  NOTE:  this parameter' default
+        value is enclosed in grave accents (or "backticks").
+        Evaluate Parameters executes the command and uses it's
+        standard output as the default value for the parameter.
+ .tty
+        A 'name' type parameter is similar to a string except
+        that embedded white-space is not allowed.  NOTE: this
+        parameter is also a LIST, meaning that it can be
+        specified multiple times and that each value is pushed
+        onto a Perl LIST variable.  In general you should quote
+        all list elements.  All types except 'switch' may be
+        'list of'.
+end-of-MM
+
+EvaP \\\@PDT, \\\@MM;		# evaluate parameters
+
+print "\\nProgram name:\\n  $Options{'help'}\\n\\n";
+
+if (defined $Options{'verbose'}) {print "\\nverbose = $Options{'verbose'}\\n";}
+print "command = \\"$Options{'command'}\\"\\n";
+print "scale\_factor  = $Options{'scale\_factor'}\\n";
+print "millisecond\_update\_interval = $Options{'millisecond\_update\_interval'}\\n";
+print "ignore\_output\_file\_column\_one = $Options{'ignore\_output\_file\_column\_one'}\\n";
+print "output = $Options{'output'}\\n";
+print "queue = $Options{'queue'}\\n";
+print "destination = $Options{'destination'}\\n";
+print "'list of' tty = \\"", join('", "', @{$Options{'tty'}}), "\\"\\n";
+
+print "\\nFile names:\\n  ", join ' ', @ARGV, "\\n" if @ARGV;
+
+
+
+.fi
+
+Using the PDT as a guide, Evaluate Parameters parses a user's
+command line, returning the results of the evaluation to global
+variables of the form '$opt\_parameter', '@opt\_parameter',
+%Options{'parameter'} or %options{'parameter'}, where 'parameter'
+is the full spelling of the command line parameter.
+
+Of course, you can specify where you want Evaluate Parameters to return its
+results, in which case this historical feature of writing into your namespace
+is disabled.
+
+Every command using Evaluate Parameters automatically has a
+-help switch which displays parameter help; no special code is
+required in your application.
+
+
+** Customization of evap's Help Output **
+
+There are several `Help Hook' strings that can be altered to customize
+evap's help output.  Currently there is only one general area that can
+be customized: usage and error text dealing with the trailing file_list.
+For instance, if a command requires one or more trailing file names after
+all the command line switches, the default -help text is:
+
+.nf
+file(s) required by this command
+.fi
+
+Some commands do not want trailing "file names", but rather some other
+type of information.  An example is `display_command_information' where
+a single Program_Name is expected.  The following code snippet shows
+how to do this:
+
+.nf
+  $Getopt::EvaP::evap_Help_Hooks{'P_HHURFL'} = " Program_Name\\n";
+  $Getopt::EvaP::evap_Help_Hooks{'P_HHBRFL'} =
+        "\\nA Program_Name is required by this command.\\n\\n";
+  $Getopt::EvaP::evap_Help_Hooks{'P_HHERFL'} =
+        "A trailing Program_Name is required by this command.\\n";
+  EvaP \\\@PDT, \\\@MM;
+.fi
+
+As you can see, the array of string `evap_Help_Hooks' is indexed by a simple
+ordinal.  The ordinals are shown below and are mostly self-explanatory.
+In case you don't have access to the source
+for Evaluate Parameters, here are the default values of the Help Hook
+strings.
+
+.nf
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHURFL'} = " file(s)\\n";
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHUOFL'} = " [file(s)]\\n";
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHUNFL'} = "\\n";
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHBRFL'} =
+         "\\nfile(s) required by this command\\n\\n";
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHBOFL'} =
+        "\\n[file(s)] optionally required by this command\\n\\n";
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHBNFL'} = "\\n";
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHERFL'} =
+        "Trailing file name(s) required.\\n";
+  $Getopt::EvaP:evap_Help_Hooks{'P_HHENFL'} =
+        "Trailing file name(s) not permitted.\\n";
+.fi
+
+The Help Hooks naming convention is rather simple:
+
+.nf
+  P_HHtf
+
+    where:
+
+      P_HH  implies an Evaluate Parameters Help Hook
+      t     type:
+              U=Usage Help
+              B=Brief and Full Help
+              E=error message
+      f     file_list:
+              RFL=required_file_list
+              OFL=optional_file_list
+              NFL=no_file_list
+.fi
+
+ Note to `genPerlTk' and `genTclTk' users:  using these Help Hooks may 
+cause the "genTk programs" to generate an unuseable Tk script.  This 
+happens because the "genTk programs" look for the strings "required by
+this command" or "optionally required by this command" in order to 
+generate the file_list Entry widget - if these string are missing the
+widget is not created.  An easy solution is to ensure that your Help 
+Hook text contains said string, just like the code snippet above;
+otherwise you must manually add the required Tk code yourself.
+ 
+
+** Human Interface Guidelines **
+
+To make Evaluate Parameters successful, you, the application developer, must
+follow certain conventions when choosing parameter names and aliases.
+
+Parameter names consist of one or more words, separated by underscores, and
+describe the parameter (for example, `verbose' and `spool_directory').
+
+You can abbreviate parameters:  use the first letter of each word in the
+parameter name.  Do not use underscores.  For example, you can abbreviate
+`command' as 'c' and `delay_period' as `dp'.
+
+There are exceptions to this standard:
+
+  - `password' is abbreviated `pw'.
+  - The words `minimum' and `maximum' are abbreviated
+    `min' and `max'.  So, the abbreviation for the
+    parameter `maximum_byte_count' is `maxbc'.
+  - There are no abbreviations for the parameters
+    `usage_help' and `full_help'; I do not want to
+    prevent `uh' and `fh' from being used as valid
+    command line parameters.
+
+
+** Variables MANPAGER, PAGER and D_EVAP_DO_PAGE **
+
+The environment variable MANPAGER (or PAGER) is used to control the
+display of help information generated by Evaluate Parameters.  If
+defined and non-null, the value of the environment variable is taken as
+the name of the program to pipe the help output through.  If no paging
+program is defined then the program `more' is used.
+
+The boolean environment variable D_EVAP_DO_PAGE can be set to FALSE/NO/OFF/0,
+any case, to disable this automatic paging feature (or you can set your
+paging program to `cat').
+.SH RETURN VALUES
+.LP
+.B evap(\|)
+behaves differently depending upon whether it's called to parse an 
+application's command line, or as an embedded command line parser
+(for instance, when using `evap_pac').
+.nf
+
+           Application      Embedded
+           Command Line     Command Line 
+----------------------------------------
+error      exit(1)          return(0)
+success    return(1)        return(1)
+help       exit(0)          return(-1)
+.fi
+.SH FILES
+See EvaP.pm for complete details.  (The file EvaP.pm is typically
+located in subdirectory /usr/local/lib/perl5/Getopt.)
+.SH AUTHOR
+Stephen O. Lidie, lusol@Lehigh.EDU
+
+Copyright (C) 1993 - 1996 by Stephen O. Lidie.  All rights reserved.
+.SH SEE ALSO
+.nf
+.BR evap(2)
+.BR evap.c(2)
+.BR EvaP.pm(2)
+.BR evap.tcl(2)
+.BR evap_pac(2)
+.BR addmm, add\_message\_modules(1)
+.BR disci, display\_command\_information(1)
+.BR genmp, generate\_man\_page(1)
+.BR genpdt, generate\_pdt(1)
+.BR genPerlTk, generate\_PerlTk\_program(1)
+.BR genTclTk, generate\_TclTk\_program(1)
